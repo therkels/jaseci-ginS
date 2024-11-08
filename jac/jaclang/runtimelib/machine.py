@@ -315,4 +315,9 @@ class ShellGhost:
             file_name, schedule=[*(py_code_gen[:-1]), *type_checker_sched]
         ).ir
         print(ir.pp())
+        #Start prompting the llm
+        #Grab key variables
+        #dump output to a file
         time.sleep(2)
+        #Prompt llm for suggestions including
+        #some clean up for the thread
