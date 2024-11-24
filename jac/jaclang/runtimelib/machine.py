@@ -96,6 +96,9 @@ class JacMachine:
                 self.jac_program.sem_ir.registry.update(mod_sem_ir.registry)
             else:
                 self.jac_program.sem_ir = mod_sem_ir
+        if self.gin and mod_sem_ir:
+            self.gin.sem_ir = mod_sem_ir
+        
 
     def load_module(self, module_name: str, module: types.ModuleType) -> None:
         """Load a module into the machine."""
@@ -372,8 +375,6 @@ class CFGTracker:
         code = frame.f_code
         if ".jac" not in code.co_filename:
             return self.trace_callback
-        
-
 
         # if event != 'line':
         #     return self.trace_callback
@@ -444,6 +445,7 @@ class ShellGhost:
         self.cfgs = None
         self.cfg_cv = threading.Condition()
         self.tracker = CFGTracker()
+        self.sem_ir = None
         
         self.finished_exception_lock = threading.Lock()
         self.exception = None
@@ -466,7 +468,6 @@ class ShellGhost:
         self.finished_exception_lock.release()
     
     def worker(self):
-
              
         # get static cfgs
         self.cfg_cv.acquire()
@@ -479,8 +480,7 @@ class ShellGhost:
 
         variables_by_line = []
         
-        # Once cv has been notifie, self.cfgs is no longer accessed across threads
-
+        # Once cv has been notified, self.cfgs is no longer accessed across threads
         
         current_executing_bbs = {}   
 
@@ -488,28 +488,31 @@ class ShellGhost:
             exec_inst_list = self.tracker.get_exec_inst()
             
             for module, offset in exec_inst_list:
-                
-                cfg = self.cfgs[module]                    
+                try:
+                    cfg = self.cfgs[module]                    
 
-                if module not in current_executing_bbs: # this means start at bb0, set exec count for bb0 to 1
-                    current_executing_bbs[module] = 0
-                    cfg.block_map.idx_to_block[0].exec_count = 1
-                
-                if offset not in cfg.block_map.idx_to_block[current_executing_bbs[module]].bytecode_offsets:
-                    for next in cfg.edges[current_executing_bbs[module]]:
-                        if offset in cfg.block_map.idx_to_block[next].bytecode_offsets:
-                            cfg.edge_counts[(current_executing_bbs[module], next)] += 1
-                            cfg.block_map.idx_to_block[next].exec_count += 1
-
-                            current_executing_bbs[module] = next
-                            break
-                
-                # print("current local variable values:" f"Inst #{inst}", variables)
-                # variables_by_line.append((inst, variables))
-                
+                    if module not in current_executing_bbs: # this means start at bb0, set exec count for bb0 to 1
+                        current_executing_bbs[module] = 0
+                        cfg.block_map.idx_to_block[0].exec_count = 1
                     
-                assert(offset in cfg.block_map.idx_to_block[current_executing_bbs[module]].bytecode_offsets)
-                # cfg.block_map.idx_to_block[current_executing_bb[0]].start_inst_variables_map[inst] = variables
+                    if offset not in cfg.block_map.idx_to_block[current_executing_bbs[module]].bytecode_offsets:
+                        for next in cfg.edges[current_executing_bbs[module]]:
+                            if offset in cfg.block_map.idx_to_block[next].bytecode_offsets:
+                                cfg.edge_counts[(current_executing_bbs[module], next)] += 1
+                                cfg.block_map.idx_to_block[next].exec_count += 1
+
+                                current_executing_bbs[module] = next
+                                break
+                    
+                    # print("current local variable values:" f"Inst #{inst}", variables)
+                    # variables_by_line.append((inst, variables))
+                    
+                        
+                    assert(offset in cfg.block_map.idx_to_block[current_executing_bbs[module]].bytecode_offsets)
+                    # cfg.block_map.idx_to_block[current_executing_bb[0]].start_inst_variables_map[inst] = variables
+                except Exception as e:
+                    self.set_finished(e)
+                    return
 
         self.finished_exception_lock.acquire()
         while (not self.finished):
@@ -528,15 +531,16 @@ class ShellGhost:
         if self.exception:
             print("Exception occured:", self.exception)    
         self.finished_exception_lock.release()
-        
+        print(self.sem_ir.pp())
+        print(self.wise_ghost(module_name,variables_by_line))
         
         # genai.configure(api_key=os.getenv("GEN_AI_KEY"))
         # model = genai.GenerativeModel("gemini-1.5-flash")
-        response_dict = {'cfg': self.cfgs, 'instructions': self.cfgs[module_name].display_instructions(), 'list of local variables at sequential line numbers': variables_by_line}
-        prompt = []
-        for k,v in response_dict.items():
-            prompt.append(f"here is my {k}:\n{v}")
-        prompt.append("\nCan you identify where the code could have an error?")
+        # response_dict = {'cfg': self.cfgs, 'instructions': self.cfgs[module_name].display_instructions(), 'list of local variables at sequential line numbers': variables_by_line}
+        # prompt = []
+        # for k,v in response_dict.items():
+        #     prompt.append(f"here is my {k}:\n{v}")
+        # prompt.append("\nCan you identify where the code could have an error?")
         # response = model.generate_content("".join(prompt))
 
         # print("PROMPT:\n")
@@ -545,3 +549,18 @@ class ShellGhost:
         # print(response.text)
 
         # print(self.cfgs['hot_path'].display_instructions())
+    def wise_ghost(self, module_name,variables_by_line):
+        genai.configure(api_key=os.getenv("GEN_AI_KEY"))
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response_dict = {'cfg': self.cfgs, 'instructions': self.cfgs[module_name].display_instructions(), 'list of local variables at sequential line numbers': variables_by_line}
+        prompt = []
+        for k,v in response_dict.items():
+            prompt.append(f"here is my {k}:\n{v}")
+        prompt.append("\nFollowing are semantic information about the code.")
+        for k,v in self.sem_ir.registry.items():
+            prompt.append(f"here is my {k}:\n{v}")
+        prompt.append("\nCan you identify where the code could have a bottleneck?")
+        prompt.append("\n(Reason using high level code rather than bytecode using semantic & type information. No code generation required.)")
+        prompt.append("\n(Ignore dataclass decarotor bottlenecks and \"Jac\" in you response.)")
+        response = model.generate_content("".join(prompt))
+        return response.text
