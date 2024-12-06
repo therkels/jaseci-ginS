@@ -16,7 +16,7 @@ import ast
 
 
 class CfgDeque:
-    def __init__(self, max_size: int = 10):
+    def __init__(self, max_size: int = 100):
         self.__max_size = max_size
         self.__deque = deque()
 

@@ -206,15 +206,12 @@ class CFG:
             bb_obj = {
                 'bb_id': node, 
                 'freq':self.block_map.idx_to_block[node].exec_count,
-                'predicted_edges':[],
-                'actual_edges':[]
+                'edges': [],
             }
             if node in self.edges and self.edges[node]:
                 for succ in self.edges[node]:
-                    edge_placeholder = {'edge_to_bb_id':succ,'freq': 0}
-                    bb_obj['predicted_edges'].append(edge_placeholder)
                     edge_obj = {'edge_to_bb_id':succ,'freq': self.edge_counts[(node, succ)]}
-                    bb_obj['actual_edges'].append(edge_obj)
+                    bb_obj['edges'].append(edge_obj)
             obj['cfg_bbs'].append(bb_obj)
         return obj
 

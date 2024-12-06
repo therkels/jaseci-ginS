@@ -7,10 +7,8 @@ class Edge(TypedDict):
 
 class BasicBlock(TypedDict):
     bb_id: int
-    actual_freq: int
-    predicted_freq: int
-    predicted_edges: List[Edge]
-    actual_edges: List[Edge]
+    freq: int
+    edges: List[Edge]
 
 class Cfg(TypedDict):
     cfg_bbs: List[BasicBlock]

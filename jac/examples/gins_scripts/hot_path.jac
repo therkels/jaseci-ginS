@@ -3,7 +3,7 @@ import:py random;
 
 with entry {
   current_directory = os.path.dirname(os.path.abspath(__file__));
-  input_dir = os.path.join(current_directory,'inputs/test.txt');
+  input_dir = os.path.join(current_directory,"inputs/test.txt");
 
   var = [];
   with open(input_dir, 'r') as file {
@@ -21,6 +21,7 @@ with entry {
   accum_sum:float = 0.0;
   changing_average:float = 0;
   change_reduction_arr:list=[];
+
   for val in var {
     input_val = val;
     count = count + 1;
