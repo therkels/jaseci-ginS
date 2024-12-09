@@ -27,17 +27,17 @@ class CfgDeque:
 
     def get_latest_cfg(self):
         return self.__deque[-1]
-        
+
     def __len__(self):
         return len(self.__deque)
 
     def get_cfg_repr(self):
-      res = [f"CFG Changes in last {len(self.__deque)} Updates:\n"]
-      for idx, cfg in enumerate(self.__deque):
-        res.append(f"\nCFG {idx+1} of {len(self.__deque)}\n")
-        res.append(cfg)
-      
-      return "".join(res)
+        res = [f"CFG Changes in last {len(self.__deque)} Updates:\n"]
+        for idx, cfg in enumerate(self.__deque):
+            res.append(f"\nCFG {idx+1} of {len(self.__deque)}\n")
+            res.append(cfg)
+
+        return "".join(res)
 
 
 class CFGTracker:
@@ -48,8 +48,7 @@ class CFGTracker:
         self.curr_variables_lock = threading.Lock()
         self.curr_variables = {}
 
-        #tracking inputs
-        self.inputs = []
+        # tracking inputs
 
     def start_tracking(self):
         """Start tracking branch coverage"""
@@ -69,14 +68,6 @@ class CFGTracker:
 
         return cpy
 
-    def get_inputs(self):
-        self.inst_lock.acquire()
-        cpy = copy.deepcopy(self.inputs)
-        self.inputs = []
-        self.inst_lock.release()
-
-        return cpy
-        
     def get_variable_values(self):
         self.curr_variables_lock.acquire()
         cpy = copy.deepcopy(self.curr_variables)
@@ -84,7 +75,6 @@ class CFGTracker:
         self.curr_variables_lock.release()
 
         return cpy
-    
 
     def trace_callback(
         self, frame: types.FrameType, event: str, arg: any
@@ -114,9 +104,6 @@ class CFGTracker:
             if "__annotations__" in frame.f_locals:
                 self.curr_variables_lock.acquire()
                 for var_name in frame.f_locals["__annotations__"]:
-                    if var_name == "input_val" and (len(self.inputs) == 0 or frame.f_locals[var_name] != self.inputs[-1]):
-                      self.inputs.append(frame.f_locals[var_name])
-
                     variable_dict[var_name] = frame.f_locals[var_name]
                 self.curr_variables[module] = (frame.f_lasti, variable_dict)
                 self.curr_variables_lock.release()

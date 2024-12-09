@@ -3,8 +3,9 @@
 
 import marshal
 import dis
+import copy
 from collections import defaultdict
-from typing import List, Optional, Iterator
+from typing import List, Optional, Iterator, Dict
 
 
 class BytecodeOp:
@@ -121,7 +122,8 @@ def disassemble_bytecode(bytecode):
         # last instruction is default of 0, but shouldn't be needed
         if i != 0:
             instruction = instructions[i - 1]
-            instruction.set_offset_size(instr.offset - instructions[i - 1].offset)
+            instruction.set_offset_size(
+                instr.offset - instructions[i - 1].offset)
     return instructions
 
 
@@ -131,7 +133,8 @@ def create_BBs(instructions: List[BytecodeOp]) -> BlockMap:
     num_instr = len(instructions)
 
     # Create offset to index mapping
-    offset_to_index = {instr.offset: idx for idx, instr in enumerate(instructions)}
+    offset_to_index = {instr.offset: idx for idx,
+                       instr in enumerate(instructions)}
     max_offset = instructions[-1].get_next_instruction_offset()
     # print(f"Offset to Index Mapping: {offset_to_index}")
 
@@ -180,6 +183,7 @@ class CFG:
         self.edges = {}
         self.edge_counts = {}
         self.block_map = block_map
+        self.input = []
 
     def add_node(self, node_id):
         self.nodes.add(node_id)
@@ -201,16 +205,17 @@ class CFG:
         return self.__repr__()
 
     def to_json(self):
-        obj = {'cfg_bbs':[]}
+        obj = {'cfg_bbs': []}
         for node in self.nodes:
             bb_obj = {
-                'bb_id': node, 
-                'freq':self.block_map.idx_to_block[node].exec_count,
+                'bb_id': node,
+                'freq': self.block_map.idx_to_block[node].exec_count,
                 'edges': [],
             }
             if node in self.edges and self.edges[node]:
                 for succ in self.edges[node]:
-                    edge_obj = {'edge_to_bb_id':succ,'freq': self.edge_counts[(node, succ)]}
+                    edge_obj = {'edge_to_bb_id': succ,
+                                'freq': self.edge_counts[(node, succ)]}
                     bb_obj['edges'].append(edge_obj)
             obj['cfg_bbs'].append(bb_obj)
         return obj
@@ -223,8 +228,18 @@ class CFG:
             )
             if node in self.edges and self.edges[node]:
                 for succ in self.edges[node]:
-                    result.append(f"(freq={self.edge_counts[(node, succ)]})-> bb{succ}")
+                    result.append(
+                        f"(freq={self.edge_counts[(node, succ)]})-> bb{succ}")
         return "\n".join(result)
+
+    def __add__(self, other):
+        new_cfg = copy.deepcopy(self)
+        for node in self.nodes:
+            if node in self.edges and self.edges[node]:
+                for succ in self.edges[node]:
+                    new_cfg.edge_counts[(node, succ)
+                                        ] += other.edge_counts[(node, succ)]
+        return new_cfg
 
 
 def create_cfg(block_map: BlockMap) -> CFG:
@@ -261,7 +276,8 @@ def create_cfg(block_map: BlockMap) -> CFG:
         # handle fall-through to the next block for non-control flow instructions
         else:
             fall_through_offset = block.instructions[-1].get_next_instruction_offset()
-            fall_through_block = find_block_by_offset(block_map, fall_through_offset)
+            fall_through_block = find_block_by_offset(
+                block_map, fall_through_offset)
             if (
                 fall_through_block is not None
                 and fall_through_offset != last_instr.offset

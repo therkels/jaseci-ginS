@@ -4,7 +4,7 @@
 import os
 import threading
 import time
-import logging
+import pickle
 
 
 from jaclang.runtimelib.gins.model import Gemini
@@ -31,20 +31,8 @@ class ShellGhost:
         self.deque_lock = threading.Lock()
         self.__cfg_deque_dict = dict()
         self.__cfg_deque_size = 1000
-        self.input_history = []
-
-        self.logger = logging.getLogger()
-        if self.logger.hasHandlers():
-          self.logger.handlers.clear()
-        logging.basicConfig(
-        level=logging.INFO,             # Set the log level
-        format='%(asctime)s - %(message)s', # Set the log message format
-        datefmt='%Y-%m-%d %H:%M:%S',    # Set the timestamp format
-          handlers=[
-              logging.FileHandler("llm_output.txt", mode='a'),  # Log to a file in append mode
-          ]
-        )
-        
+        self.input_path = os.path.join(os.path.dirname(
+            os.path.abspath(__file__)), 'cfgs/tmp_cfg.pkl')
 
     def set_cfgs(self, cfgs):
         self.cfg_cv.acquire()
@@ -55,7 +43,7 @@ class ShellGhost:
     def update_cfg_deque(self, cfg, module):
         self.deque_lock.acquire()
         if module not in self.__cfg_deque_dict:
-          self.__cfg_deque_dict[module] = CfgDeque(self.__cfg_deque_size)
+            self.__cfg_deque_dict[module] = CfgDeque(self.__cfg_deque_size)
         self.__cfg_deque_dict[module].add_cfg(cfg)
         self.deque_lock.release()
 
@@ -71,108 +59,6 @@ class ShellGhost:
         self.exception = exception
         self.finished = True
         self.finished_exception_lock.release()
-
-
-    def prompt_llm(self, verbose: bool = False):
-        current_directory = os.path.dirname(os.path.abspath(__file__))
-        input_dir = os.path.abspath(os.path.join("../../examples/gins_scripts/inputs/test_predict.txt"))
-
-        vars_to_predict = []
-        with open(input_dir, 'r') as file:
-            for line in file:
-                # Process each line here
-                vars_to_predict.append(float(line.strip()))  # .strip() removes trailing newlines
-          
-      
-        prompt = """I have a program.
-        Up to last {history_size} CFGs recorded:
-        {cfgs},
-        Instructions per basic block:
-        {instructions}
-        Semantic and Type information from source code:
-        {sem_ir}"""
-
-        cfg_string = ""
-        ins_string = ""
-
-        for module, cfg in self.cfgs.items():
-            cfg_history = "None at this time"
-            if module in self.__cfg_deque_dict:
-              cfg_history = self.__cfg_deque_dict[module].get_cfg_repr()
-            cfg_string += f"Module: {module}\n{cfg_history}"
-            ins_string += f"Module: {module}\n{cfg.display_instructions()}"
-
-        prompt = prompt.format(
-            history_size=self.__cfg_deque_size,
-            cfgs=cfg_string, 
-            instructions=ins_string, 
-            sem_ir=self.sem_ir.pp()
-        )
-        prompt += "For each CFG, here is the corresponding input history:\n"
-        for idx,i in enumerate(self.input_history):
-          prompt += f"input history {idx+1} of {len(self.input_history)}:\n"
-          prompt += f"{i}\n"
-
-        prompt += f"I have the following inputs:\n{str(vars_to_predict)}\n"
-
-        prompt += "\n Please use the following information to predict what the program frequencies update using the information provided. For frequency updates, the edges and BBs should have a higher frequency than the original input I provided."
-        if verbose:
-            print(prompt)
-
-        response = self.model.generate_structured(prompt)
-
-        return response
-
-    def prompt_llm_with_history(self, verbose: bool = False):
-        prompt = """I have a program.
-        Up to last {history_size} CFGs recorded:
-        {cfgs},
-        Instructions per basic block:
-        {instructions}
-        Semantic and Type information from source code:
-        {sem_ir}"""
-
-        cfg_string = ""
-        ins_string = ""
-        for module, cfg in self.cfgs.items():
-            cfg_history = "None at this time"
-            if module in self.__cfg_deque_dict:
-              cfg_history = self.__cfg_deque_dict[module].get_cfg_repr()
-            cfg_string += f"Module: {module}\n{cfg_history}"
-            ins_string += f"Module: {module}\n{cfg.display_instructions()}"
-
-        prompt = prompt.format(
-            history_size=self.__cfg_deque_size,
-            cfgs=cfg_string, 
-            instructions=ins_string, 
-            sem_ir=self.sem_ir.pp()
-        )
-
-        if self.variable_values != None:
-            prompt += "\nCurrent variable values at the specified bytecode offset:"
-
-            for module, var_map in self.variable_values.items():
-                prompt += f"\nModule {module}: Offset: {var_map[0]}, Variables: {str(var_map[1])}"
-
-        self.finished_exception_lock.acquire()
-
-        if self.exception:
-            prompt += f"\nException: {self.exception}"
-
-        self.finished_exception_lock.release()
-
-        prompt += "\nCan you identity bottlneck optimizations or where the code can error out?"
-        prompt += "\n(Reason about the program using cfg history, semantic and type information. Users will not have access to BB information, so try to reason about the logic and frequencies of blocks instead.)"
-        prompt += "\n Additionally, look for any cases where the hot path of the code appears to change at some point in the program"
-        prompt += "\n If variable values are available, can you provide tracing information to help find the root cause of any issues?"
-
-        if verbose:
-            print(prompt)
-
-        response = self.model.generate_structured(prompt)
-
-
-        return response
 
     def worker(self):
         # get static cfgs
@@ -238,26 +124,9 @@ class ShellGhost:
 
             self.variable_values = self.tracker.get_variable_values()
             self.update_cfg_deque(cfg.get_cfg_repr(), module)
-            self.input_history.append(self.tracker.get_inputs())
             # self.logger.info(cfg.to_json())
-
-        self.finished_exception_lock.acquire()
-        while not self.finished:
-            self.finished_exception_lock.release()
-
-            time.sleep(1)
-            print("\nUpdating cfgs")
-            update_cfg()
-            # self.logger.info(self.prompt_llm())
-            # print(f"history size: {len(self.__cfg_deque_dict['hot_path'])}")
-            self.finished_exception_lock.acquire()
-            # time.sleep(1)
-
-        self.finished_exception_lock.release()
 
         print("\nUpdating cfgs at the end")
         update_cfg()
-        self.logger.info(self.prompt_llm(verbose=True))
-        # print(self.__cfg_deque_dict['hot_path'].get_cfg_repr())
-        self.logger.info(f"CFG FINAL FOR TEST 1: {self.cfgs['hot_path'].to_json()}")
-        
+        with open(self.input_path, 'wb') as f:
+            pickle.dump(self.cfgs, f)
