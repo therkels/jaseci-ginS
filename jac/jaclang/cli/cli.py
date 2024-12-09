@@ -73,11 +73,12 @@ def format(path: str, outfile: str = "", debug: bool = False) -> None:
 
 @cmd_registry.register
 def run(
-    filename: str, session: str = "", main: bool = True, cache: bool = True, gins: bool = False
+    filename: str, session: str = "", main: bool = True, cache: bool = True, gins: bool = False, input:float = 0.0
 ) -> None:
     """Run the specified .jac file."""
     # if no session specified, check if it was defined when starting the command shell
     # otherwise default to jaclang.session
+    input = input
     if session == "":
         session = (
             cmd_registry.args.session
