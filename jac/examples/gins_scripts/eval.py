@@ -2,7 +2,7 @@ import os
 import random
 import subprocess
 
-num_samples = 5
+num_samples = 100
 start_value = 99
 end_avg = 105
 
@@ -18,24 +18,24 @@ for _ in range(num_samples):
     noise = random.uniform(-0.7, 0.5)
     sensor_value = current_value + noise
     sensor_data.append(sensor_value)
-    
+
     # Update current value towards the end_avg
     current_value += increment
 
 current_directory = os.path.dirname(os.path.abspath(__file__))
-program = os.path.join(current_directory,'hot_path.jac')
+program = os.path.join(current_directory, 'hot_path.jac')
 
-for i,input in enumerate(sensor_data):
+for i, input in enumerate(sensor_data):
     try:
         # Use subprocess to pass input and capture output
         os.system(f'jac run {program} --gins --input {input}')
 
-        temp_file = os.path.join(current_directory, 'temp.pkl')
-        new_file = os.path.join(current_directory, f'sensor_data_{i}.pkl')
-        
+        temp_file = os.path.join(current_directory, 'preds/tmp_cfg.pkl')
+        new_file = os.path.join(current_directory, f'preds/cfg{i}.pkl')
+
         if os.path.exists(temp_file):
             os.rename(temp_file, new_file)
-        
+
         # Print or process the output from the jac program
         # output = process.stdout
         # print(f"Output: {output}")

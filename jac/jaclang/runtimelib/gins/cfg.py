@@ -4,8 +4,7 @@
 import marshal
 import dis
 import copy
-from collections import defaultdict
-from typing import List, Optional, Iterator, Dict
+from typing import List, Dict
 
 
 class BytecodeOp:
@@ -183,7 +182,6 @@ class CFG:
         self.edges = {}
         self.edge_counts = {}
         self.block_map = block_map
-        self.input = []
 
     def add_node(self, node_id):
         self.nodes.add(node_id)

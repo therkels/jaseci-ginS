@@ -2,16 +2,13 @@
 """
 
 import os
+import sys
 import threading
-import time
 import pickle
 
 
 from jaclang.runtimelib.gins.model import Gemini
 from jaclang.runtimelib.gins.tracer import CFGTracker, CfgDeque
-
-
-# Helper class to maintain a fixed deque size
 
 
 class ShellGhost:
@@ -31,8 +28,13 @@ class ShellGhost:
         self.deque_lock = threading.Lock()
         self.__cfg_deque_dict = dict()
         self.__cfg_deque_size = 1000
-        self.input_path = os.path.join(os.path.dirname(
-            os.path.abspath(__file__)), 'cfgs/tmp_cfg.pkl')
+
+        parent_dir = os.path.dirname(os.path.abspath(__file__))
+        for i in range(3):
+            parent_dir = os.path.dirname(parent_dir)
+
+        self.input_path = os.path.join(
+            parent_dir, 'examples/gins_scripts', 'preds/tmp_cfg.pkl')
 
     def set_cfgs(self, cfgs):
         self.cfg_cv.acquire()
@@ -128,5 +130,7 @@ class ShellGhost:
 
         print("\nUpdating cfgs at the end")
         update_cfg()
+        pickled_ghost = {"input": float(
+            sys.argv[-1]), "sem_ir": self.sem_ir, "cfgs": self.cfgs}
         with open(self.input_path, 'wb') as f:
-            pickle.dump(self.cfgs, f)
+            pickle.dump(pickled_ghost, f)
