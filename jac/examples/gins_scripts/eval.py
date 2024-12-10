@@ -2,7 +2,7 @@ import os
 import random
 import subprocess
 
-num_samples = 100
+num_samples = 1000
 start_value = 99
 end_avg = 105
 

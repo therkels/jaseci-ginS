@@ -130,6 +130,9 @@ class ShellGhost:
 
         print("\nUpdating cfgs at the end")
         update_cfg()
+        input_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'examples/gins_scripts')
+        if not os.path.exists(os.path.dirname(input_dir)):
+            os.makedirs(os.path.dirname(input_dir))
         pickled_ghost = {"input": float(
             sys.argv[-1]), "sem_ir": self.sem_ir, "cfgs": self.cfgs}
         with open(self.input_path, 'wb') as f:
