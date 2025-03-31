@@ -27,6 +27,7 @@ for file_name in sorted_file_names:
         cfg_data=(pickle.load(file))
         if sem_ir == '':
             sem_ir = cfg_data['sem_ir']
+            # print(cfg_data)
         data.append({'input':cfg_data['input'], 'cfgs':cfg_data['cfgs']['hot_path']})
 
 data = data[:-1]
@@ -101,12 +102,45 @@ def prompt_llm(data: dict, verbose: bool = False):
 
     return cfg_predict
 
+def prompt_llm_duh(data: dict, verbose: bool = False):
+    prompt = """The following information is available for the program:
+    Control Flow Graph (Ignore given sample edge frequencies):
+    {cfgs}
+    source code:
+    {code}
+    Next Inputs:
+    {inputs}
+    """
+    with open(os.path.join(os.path.dirname(directory_path), "hot_path.jac"), "r") as file:
+        code = file.read()
+    cfg = f"\n{test_set[0]['cfgs']}"
+    inputs = f"\n{data['input']}"
+
+    prompt = prompt.format(cfgs=cfg, code=code,  inputs=inputs)
+
+    prompt += "\nPredict the edge frequency for the next basic block in the CFG for the given inputs."
+    # prompt += "\n(Reason about the program using cfg, semantic and type information. Instead of saying what BB could be improved, reason about the program itself and what improvements could be made.)"
+    # prompt += "\n If variable values are available, reason about at what point did a variable cause an issue"
+    # prompt += "\n Please use the following information fill in predicted_edges[freq] for each BB edge with something completely random"
+    if verbose:
+        print(prompt)
+    
+    model = Gemini()
+    cfg_predict = model.generate_structured(prompt)
+
+    return cfg_predict
+
 for i,data in enumerate(test_set):
-    print(f"Predicting for {i} of {len(test_set)}")
-    predict = prompt_llm(data)
+    print(f"Predicting for {i+1} of {len(test_set)}")
+    predict = prompt_llm_duh(data)
     test_set[i]['Predicted'] = predict
     # print(test_set[i])
 
-
-with open(os.path.join(directory_path, "predictions.pkl"), "wb") as file:
+with open(os.path.join(os.path.dirname(directory_path), "predictions_no_context.pkl"), "wb") as file:
     pickle.dump(test_set, file)
+
+# for i,data in enumerate(test_set):
+#     print(f"Predicting for {i} of {len(test_set)}")
+#     predict = prompt_llm(data)
+#     test_set[i]['Predicted'] = predict
+#     print(test_set[i])

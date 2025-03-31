@@ -95,8 +95,8 @@ def prompt_llm():
     # prompt += f"I have the following inputs:\n{merged_inputs[-1]}\n"
     # print(prompt)
 
-    # model = Gemini()
-    # response = model.generate_structured(prompt)
+    model = Gemini()
+    response = model.generate_structured(prompt)
     #
     # return response
 
